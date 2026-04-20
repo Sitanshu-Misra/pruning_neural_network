@@ -1,13 +1,3 @@
-"""
-Self-Pruning Neural Network for CIFAR-10 Classification
-========================================================
-Tredence Analytics - AI Engineering Internship Case Study
-
-This script implements a feed-forward neural network that learns to prune
-its own weights during training via learnable gate parameters with L1 penalty.
-
-Run: python self_pruning_neural_network.py
-"""
 
 import os, time, numpy as np, matplotlib
 matplotlib.use("Agg")
@@ -15,46 +5,31 @@ import matplotlib.pyplot as plt
 import torch, torch.nn as nn, torch.nn.functional as F, torch.optim as optim
 import torchvision, torchvision.transforms as transforms
 
-# Reproducibility
 SEED = 42
 torch.manual_seed(SEED); np.random.seed(SEED)
 if torch.cuda.is_available(): torch.cuda.manual_seed_all(SEED)
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"[INFO] Device: {DEVICE}")
 
-# ── Part 1: PrunableLinear Layer ─────────────────────────────────────────────
-
 class PrunableLinear(nn.Module):
-    """Linear layer with learnable per-weight gate parameters.
-    
-    Forward: y = F.linear(x, weight * sigmoid(gate_scores), bias)
-    Gradients flow through both weight and gate_scores.
-    """
     def __init__(self, in_features: int, out_features: int):
         super().__init__()
         self.weight = nn.Parameter(torch.empty(out_features, in_features))
         self.bias = nn.Parameter(torch.empty(out_features))
-        # Gate scores: init to +3 so sigmoid ~ 0.95 (no pruning at start)
         self.gate_scores = nn.Parameter(torch.full((out_features, in_features), 3.0))
         nn.init.kaiming_uniform_(self.weight, a=np.sqrt(5))
         nn.init.zeros_(self.bias)
 
     def forward(self, x):
-        gates = torch.sigmoid(self.gate_scores)       # soft gates in (0,1)
-        pruned_weight = self.weight * gates            # element-wise gating
+        gates = torch.sigmoid(self.gate_scores)
+        pruned_weight = self.weight * gates
         return F.linear(x, pruned_weight, self.bias)
 
     def get_gate_values(self):
         with torch.no_grad():
             return torch.sigmoid(self.gate_scores)
 
-# ── Part 2: Network Architecture ────────────────────────────────────────────
-
 class SelfPruningNet(nn.Module):
-    """Feed-forward CIFAR-10 classifier using only PrunableLinear layers.
-    
-    3072 -> 1024 -> 512 -> 256 -> 10 with BatchNorm, ReLU, Dropout.
-    """
     def __init__(self, dropout=0.2):
         super().__init__()
         self.fc1 = PrunableLinear(3072, 1024)
@@ -67,27 +42,22 @@ class SelfPruningNet(nn.Module):
         self.drop = nn.Dropout(dropout)
 
     def forward(self, x):
-        x = x.view(x.size(0), -1)                     # flatten to (B, 3072)
-        x = self.drop(F.relu(self.bn1(self.fc1(x))))   # block 1
-        x = self.drop(F.relu(self.bn2(self.fc2(x))))   # block 2
-        x = self.drop(F.relu(self.bn3(self.fc3(x))))   # block 3
-        return self.fc4(x)                              # logits
+        x = x.view(x.size(0), -1)
+        x = self.drop(F.relu(self.bn1(self.fc1(x))))
+        x = self.drop(F.relu(self.bn2(self.fc2(x))))
+        x = self.drop(F.relu(self.bn3(self.fc3(x))))
+        return self.fc4(x)
 
     def prunable_layers(self):
         for m in self.modules():
             if isinstance(m, PrunableLinear):
                 yield m
 
-# ── Part 3: Sparsity Loss ───────────────────────────────────────────────────
-
 def compute_sparsity_loss(model):
-    """L1 norm of all sigmoid(gate_scores) across all PrunableLinear layers."""
     total = torch.tensor(0.0, device=DEVICE)
     for layer in model.prunable_layers():
         total = total + torch.sigmoid(layer.gate_scores).sum()
     return total
-
-# ── Part 4: Data Loading ────────────────────────────────────────────────────
 
 def get_cifar10_loaders(batch_size=128):
     mean, std = (0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2616)
@@ -101,8 +71,6 @@ def get_cifar10_loaders(batch_size=128):
                                         num_workers=2, pin_memory=True),
             torch.utils.data.DataLoader(test_ds, batch_size, shuffle=False,
                                         num_workers=2, pin_memory=True))
-
-# ── Part 5: Training & Evaluation ───────────────────────────────────────────
 
 def train_one_epoch(model, loader, optimizer, criterion, lam):
     model.train(); running = 0.0
@@ -134,8 +102,6 @@ def compute_sparsity_pct(model, thr=1e-2):
 def collect_gates(model):
     return np.concatenate([layer.get_gate_values().cpu().numpy().ravel()
                            for layer in model.prunable_layers()])
-
-# ── Part 6: Plotting ────────────────────────────────────────────────────────
 
 def plot_gate_dist(gates, lam, path):
     plt.figure(figsize=(10, 6))
@@ -173,8 +139,6 @@ def plot_comparison(results, path):
     plt.tight_layout(); plt.savefig(path, dpi=150); plt.close()
     print(f"[INFO] Saved: {path}")
 
-# ── Part 7: Experiment Runner ───────────────────────────────────────────────
-
 def run_experiment(lam, train_loader, test_loader, epochs=25, lr=1e-3):
     print(f"\n{'='*60}\n  EXPERIMENT | lambda = {lam}\n{'='*60}")
     model = SelfPruningNet().to(DEVICE)
@@ -197,8 +161,6 @@ def run_experiment(lam, train_loader, test_loader, epochs=25, lr=1e-3):
     print(f"  >> Gates near 0: {(gv<0.01).sum():,} | near 1: {(gv>0.99).sum():,}")
     return {"lambda": lam, "accuracy": acc, "sparsity": sp, "model": model, "gate_values": gv}
 
-# ── Main ─────────────────────────────────────────────────────────────────────
-
 def main():
     print("="*60)
     print("  SELF-PRUNING NEURAL NETWORK - CIFAR-10")
@@ -217,14 +179,12 @@ def main():
         if best is None or r["accuracy"] > best["accuracy"]:
             best = r
 
-    # Results table
     print(f"\n{'='*60}\n  RESULTS SUMMARY\n{'='*60}")
     print(f"  {'Lambda':<14}{'Accuracy (%)':<20}{'Sparsity (%)':<20}")
     print(f"  {'-'*14}{'-'*20}{'-'*20}")
     for r in results:
         print(f"  {r['lambda']:<14.1e}{r['accuracy']:<20.2f}{r['sparsity']:<20.2f}")
 
-    # Plots
     plot_gate_dist(best["gate_values"], best["lambda"],
                    os.path.join(OUT, "gate_distribution_best.png"))
     for r in results:
@@ -233,7 +193,6 @@ def main():
                        os.path.join(OUT, f"gate_dist_{tag}.png"))
     plot_comparison(results, os.path.join(OUT, "accuracy_vs_sparsity.png"))
 
-    # Save text summary
     with open(os.path.join(OUT, "results_summary.txt"), "w") as f:
         f.write("Self-Pruning Neural Network - Results\n" + "="*50 + "\n")
         for r in results:
