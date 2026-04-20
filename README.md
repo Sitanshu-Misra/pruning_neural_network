@@ -1,11 +1,11 @@
-# Self-Pruning Neural Network 🧠✂️
+# Self-Pruning Neural Network 
 
 This repository contains my solution for the **Tredence Analytics AI Engineering Internship Case Study**.
 
-## 📌 Project Overview
+## Project Overview
 The goal of this project is to build a feed-forward neural network for CIFAR-10 image classification that **learns to prune itself** during training. Instead of applying manual pruning heuristics after training, the network autonomously discovers which weight connections are dispensable using learnable gate parameters and L1 regularization.
 
-### 🌟 Key Features
+### Key Features
 - **Custom `PrunableLinear` Layer**: Replaces standard fully-connected layers with learnable "gate scores" for every weight.
 - **End-to-End Differentiable Pruning**: A sparsity penalty (L1 norm of the sigmoid gate values) is added to the Cross-Entropy loss.
 - **Bimodal Gate Distribution**: The L1 penalty forces gates to either 0 (pruned) or 1 (retained), creating a naturally sparse architecture.
@@ -13,7 +13,7 @@ The goal of this project is to build a feed-forward neural network for CIFAR-10 
 
 ---
 
-## 🚀 How to Run
+## How to Run
 
 ### 1. Prerequisites
 Ensure you have Python installed. You will need the following dependencies:
@@ -37,5 +37,5 @@ The script will:
 
 ---
 
-## 📄 Full Case Study Report
+##  Full Case Study Report
 For an in-depth mathematical intuition behind why the L1 penalty on sigmoid gates encourages sparsity, as well as a detailed analysis of the expected bimodal gate distribution, please refer to the comprehensive [REPORT.md](./REPORT.md) included in this repository.
